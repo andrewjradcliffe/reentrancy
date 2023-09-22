@@ -60,6 +60,12 @@ fn reentrancy_external() {
     let c = rc.borrow().clone();
     drop(rc);
     c.call(1);
+    // In contrast to the BorrowMutError demonstrated in `reentrancy_internal`,
+    // this form of reentrancy should be apparent to the person which wrote
+    // the code -- or, at least, the cause of the error is due the library user,
+    // not the library writer. The internal example would be non-obvious,
+    // and, in order to understand the cause, the library user would need
+    // to consider some of the library internals.
 }
 
 fn main() {
