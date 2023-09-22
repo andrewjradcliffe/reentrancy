@@ -20,6 +20,31 @@ impl CallbacksMut {
     pub fn call(&mut self, val: i32) {
         for callback in self.callbacks.iter() {
             let mut closure = callback.borrow_mut();
+            // closure(val);
+            (&mut *closure)(val);
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Callbacks {
+    callbacks: Vec<Rc<RefCell<dyn Fn(i32)>>>,
+}
+impl Callbacks {
+    pub fn new() -> Self {
+        Callbacks {
+            callbacks: Vec::new(),
+        }
+    }
+
+    pub fn register<F: Fn(i32) + 'static>(&mut self, callback: F) {
+        let cell = Rc::new(RefCell::new(callback));
+        self.callbacks.push(cell);
+    }
+
+    pub fn call(&self, val: i32) {
+        for callback in self.callbacks.iter() {
+            let closure = callback.borrow();
             closure(val);
         }
     }
