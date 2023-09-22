@@ -2,7 +2,7 @@ use reentrancy::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-fn reentrancy_internal() {
+fn internal() {
     let mut count: usize = 0;
     let mut c1 = CallbacksMut::new();
     c1.register(move |val| {
@@ -28,7 +28,7 @@ fn reentrancy_internal() {
     // `rc.borrow_mut().call(1)`.
 }
 
-fn reentrancy_external() {
+fn external() {
     // This illustrates the case in which calling of closures does not require
     // a mutable borrow. The structure mimics the internal reentrancy case,
     // except the enclosed environment is not mutable. When we `c.call(1)`,
@@ -54,13 +54,13 @@ fn reentrancy_external() {
         // BorrowMutError
         let guard = rc2.borrow_mut();
         // Infinite recursion
-        // let mut guard = rc.borrow();
+        // let guard = rc.borrow();
         guard.call(val + val);
     });
     let c = rc.borrow().clone();
     drop(rc);
     c.call(1);
-    // In contrast to the BorrowMutError demonstrated in `reentrancy_internal`,
+    // In contrast to the BorrowMutError demonstrated in `internal`,
     // this form of reentrancy should be apparent to the person which wrote
     // the code -- or, at least, the cause of the error is due the library user,
     // not the library writer. The internal example would be non-obvious,
@@ -68,7 +68,56 @@ fn reentrancy_external() {
     // to consider some of the library internals.
 }
 
+fn fib_iter(n: i32) {
+    // An example with recursive calls which is intended to terminate.
+    // May as well permit Fibonacci in both directions, as this simplifies
+    // questions about whether the program terminates
+    // N.B. the stack will eventually overflow as this is recursive,
+    // but i64 will underflow/overflow well before the stack does.
+    let a: Cell<i64> = Cell::new(1);
+    let b: Cell<i64> = Cell::new(0);
+    let count: Cell<usize> = Cell::new(0);
+    let mut c1 = Callbacks::new();
+    // This is the loop body
+    c1.register(move |i| {
+        count.set(count.get() + 1);
+        let t_b = b.get();
+        if i >= 0 {
+            let t = a.get() + t_b;
+            b.set(a.get());
+            a.set(t);
+        } else {
+            let t = a.get() - t_b;
+            a.set(t_b);
+            b.set(t);
+        }
+        println!(
+            "Callback 1: Fib({}) = {} ({}.time)",
+            n - i,
+            t_b,
+            count.get()
+        );
+    });
+    let rc = Rc::new(RefCell::new(c1));
+    let rc2 = Rc::clone(&rc);
+    // This is the loop condition, albeit, applied after the loop body.
+    rc.borrow_mut().register(move |i| {
+        println!("Callback 2: {}", i);
+        if i > 0 {
+            let guard = rc2.borrow();
+            guard.call(i - 1);
+        } else if i < 0 {
+            let guard = rc2.borrow();
+            guard.call(i + 1);
+        }
+    });
+    let c = rc.borrow().clone();
+    drop(rc);
+    c.call(n);
+}
+
 fn main() {
-    // reentrancy_internal();
-    reentrancy_external();
+    // internal();
+    // external();
+    fib_iter(-25);
 }
